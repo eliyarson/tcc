@@ -4,6 +4,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.layers import Bidirectional
+from tensorflow.keras import optimizers
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -75,7 +76,7 @@ validate = df[df['dt_partida_real'] >= '2019-01-01']
 df_agg = df.groupby('yearmonth').agg(flights=('flights', 'sum'),
                                      paid_passengers=('paid_passengers', 'sum')).reset_index()
 df_agg = df_agg.pipe(standardize, columns=columns)
-train_agg = df_agg[(df_agg['yearmonth'] >= '2012-01') &
+train_agg = df_agg[(df_agg['yearmonth'] >= '2010-01') &
                    (df_agg['yearmonth'] <= '2018-12')]
 validate_agg = df_agg[df_agg['yearmonth'] >= '2018-01']
 
@@ -389,11 +390,12 @@ print('ADAM algorithm, MSE loss.')
 model = Sequential()
 model.add(Bidirectional(LSTM(100, activation='relu',
                              input_shape=(n_steps_in, n_features))))
-model.add(Dense(n_steps_out, activation='linear'))
-model.compile(optimizer='nadam', loss='mse')
+model.add(Dense(n_steps_out))
+opt = optimizers.Adam(learning_rate=0.001)
+model.compile(optimizer=opt, loss='mse')
 
 # fit model
-epochs = 300
+epochs = 1000
 steps_per_epoch = 1
 history = model.fit(X, y, validation_data=(X_val, y_val), epochs=epochs,
                     steps_per_epoch=steps_per_epoch, verbose=1)
