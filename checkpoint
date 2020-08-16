@@ -1,0 +1,2 @@
+model_checkpoint_path: "train_10000_epochs"
+all_model_checkpoint_paths: "train_10000_epochs"
