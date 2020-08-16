@@ -77,7 +77,7 @@ df_agg = df.groupby('yearmonth').agg(flights=('flights', 'sum'),
 df_agg = df_agg.pipe(standardize, columns=columns)
 train_agg = df_agg[(df_agg['yearmonth'] >= '2012-01') &
                    (df_agg['yearmonth'] <= '2018-12')]
-validate_agg = df_agg[df_agg['yearmonth'] >= '2019-01']
+validate_agg = df_agg[df_agg['yearmonth'] >= '2018-01']
 
 # %%
 
@@ -355,16 +355,17 @@ def split_sequence(sequence, n_steps_in, n_steps_out):
     return array(X), array(y)
 
 
-BATCH_SIZE = 1000
 # define input sequence
-seq = np.array(train['flights'])
+seq = np.array(train_agg['flights_standard'])
 print('Define the input:\n', seq)
 # choose a number of time steps
-n_steps_in = 100
+n_steps_in = 12
 n_steps_out = n_steps_in
 print('Timesteps: ', n_steps_in)
 # split into samples
 X, y = split_sequence(seq, n_steps_in, n_steps_out)
+X_val, y_val = split_sequence(
+    np.array(validate_agg['flights_standard']), n_steps_in, n_steps_out)
 # summarize the data
 print('\nSummarize the data:\n')
 for i in range(len(X)):
@@ -378,6 +379,7 @@ print('\nBefore:')
 print(X.shape)
 n_features = 1
 X = X.reshape((X.shape[0], X.shape[1], n_features))
+X_val = X_val.reshape((X_val.shape[0], X_val.shape[1], n_features))
 print('After:')
 print(X.shape)
 # define model
@@ -387,36 +389,36 @@ print('ADAM algorithm, MSE loss.')
 model = Sequential()
 model.add(Bidirectional(LSTM(100, activation='relu',
                              input_shape=(n_steps_in, n_features))))
-model.add(Dense(n_steps_out))
-model.compile(optimizer='adam', loss='mse')
-
-
-train_data = tf.data.Dataset.from_tensor_slices(
-    (X, y))
-
-train_data = train_data.cache().shuffle(100).batch(BATCH_SIZE).repeat()
+model.add(Dense(n_steps_out, activation='linear'))
+model.compile(optimizer='nadam', loss='mse')
 
 # fit model
-epochs = 100
+epochs = 300
 steps_per_epoch = 1
-model.fit(train_data, epochs=epochs,
-          steps_per_epoch=steps_per_epoch, verbose=1)
+history = model.fit(X, y, validation_data=(X_val, y_val), epochs=epochs,
+                    steps_per_epoch=steps_per_epoch, verbose=1)
 train_time = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-model.save_weights(f'saves/train_{epochs}_epochs_{train_time}')
+
+plt.figure()
+plt.title('Mean Squared Error')
+plt.plot(history.history['loss'], label='train')
+plt.plot(history.history['val_loss'], label='test')
+plt.legend()
+
+# model.save_weights(f'saves/train_{epochs}_epochs_{train_time}')
 # %%
 # demonstrate prediction
-predict_input = train[train['dt_partida_real']
-                      >= '2018-01-01']['flights'].values[-n_steps_in:]
+predict_input = train_agg[train_agg['yearmonth']
+                          >= '2018-01']['flights_standard'].values[-n_steps_in:]
 x_input = predict_input
 x_input = x_input.reshape((1, n_steps_in, n_features))
 yhat = model.predict(x_input, verbose=0)
 
-validate_flights = transform_output(
-    validate['flights'].values[:n_steps_out], avg_flights, std_flights)
-predict = transform_output(yhat[0], avg_flights, std_flights)
+validate_flights = validate_agg['flights_standard'].values[-n_steps_out:]
+predict = yhat
 steps = create_time_steps(yhat.shape[1])
 plt.figure()
-plt.plot(steps, predict)
+plt.plot(steps, predict[0])
 plt.plot(steps, validate_flights)
 
 mse = np.sqrt((np.square(validate_flights-predict)).mean())
