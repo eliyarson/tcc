@@ -68,7 +68,7 @@ def create_time_steps(length):
 df.plot(subplots=True)
 
 
-train = df[(df['dt_partida_real'] >= '2012-01-01') &
+train = df[(df['dt_partida_real'] >= '2013-01-01') &
            (df['dt_partida_real'] <= '2018-12-31')]
 validate = df[df['dt_partida_real'] >= '2019-01-01']
 
@@ -391,40 +391,44 @@ model = Sequential()
 model.add(Bidirectional(LSTM(100, activation='relu',
                              input_shape=(n_steps_in, n_features))))
 model.add(Dense(n_steps_out))
-opt = optimizers.Adam(learning_rate=0.001)
+opt = optimizers.Adam(learning_rate=0.00005)
 model.compile(optimizer=opt, loss='mse')
 
-# fit model
-epochs = 1000
-steps_per_epoch = 1
-history = model.fit(X, y, validation_data=(X_val, y_val), epochs=epochs,
-                    steps_per_epoch=steps_per_epoch, verbose=1)
-train_time = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+# fit model"
+epochs = [1000, 2000, 3000, 5000, 10000]
+for epoch in epochs:
+    steps_per_epoch = 1
+    history = model.fit(X, y, validation_data=(X_val, y_val), epochs=epoch,
+                        steps_per_epoch=steps_per_epoch, verbose=1)
+    train_time = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 
-plt.figure()
-plt.title('Mean Squared Error')
-plt.plot(history.history['loss'], label='train')
-plt.plot(history.history['val_loss'], label='test')
-plt.legend()
+    plt.figure()
+    plt.title('Mean Squared Error')
+    plt.plot(history.history['loss'], label='train')
+    plt.plot(history.history['val_loss'], label='test')
+    plt.legend()
 
-# model.save_weights(f'saves/train_{epochs}_epochs_{train_time}')
-# %%
-# demonstrate prediction
-predict_input = train_agg[train_agg['yearmonth']
-                          >= '2018-01']['flights_standard'].values[-n_steps_in:]
-x_input = predict_input
-x_input = x_input.reshape((1, n_steps_in, n_features))
-yhat = model.predict(x_input, verbose=0)
+    model.save_weights(f'saves/train_{epochs}_epochs_{train_time}')
+    plt.savefig(f"{epoch}_epochs_loss_{train_time}")
+    # demonstrate prediction
+    predict_input = train_agg[train_agg['yearmonth']
+                              >= '2018-01']['flights_standard'].values[-n_steps_in:]
+    x_input = predict_input
+    x_input = x_input.reshape((1, n_steps_in, n_features))
+    yhat = model.predict(x_input, verbose=0)
 
-validate_flights = validate_agg['flights_standard'].values[-n_steps_out:]
-predict = yhat
-steps = create_time_steps(yhat.shape[1])
-plt.figure()
-plt.plot(steps, predict[0])
-plt.plot(steps, validate_flights)
+    validate_flights = validate_agg['flights_standard'].values[-n_steps_out:]
+    predict = yhat
+    steps = create_time_steps(yhat.shape[1])
+    steps_2 = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai',
+               'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+    plt.figure()
+    plt.plot(steps_2, predict[0], label='Predição')
+    plt.plot(steps_2, validate_flights, label='Real')
+    plt.legend()
 
-mse = np.sqrt((np.square(validate_flights-predict)).mean())
-print(mse)
+    mse = np.sqrt((np.square(validate_flights-predict)).mean())
+    print(mse)
 # %%
 plt.rcParams["figure.figsize"] = [16, 9]
 
