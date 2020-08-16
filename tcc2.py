@@ -9,6 +9,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import tensorflow as tf
 from datetime import datetime
+from sklearn import preprocessing
+
 
 tf.random.set_seed(13)
 
@@ -25,10 +27,7 @@ plt.ylabel("Número de Passageiros         -        Número de Vôos", loc='bott
 
 
 avg_flights = df['flights'].mean()
-std_flights = df['flights'].std()
 avg_pp = df['paid_passengers'].mean()
-std_pp = df['paid_passengers'].std()
-
 
 df['flights'] = df['flights'].apply(
     lambda x: avg_flights if x <= 50 else x)
@@ -39,9 +38,21 @@ df.plot(subplots=True)
 plot_tcc = df[df['dt_partida_real'] >
               '2019-01-01'].set_index('dt_partida_real')['flights']
 
-df['flights'] = df['flights'].apply(lambda x: (x-avg_flights)/std_flights)
-df['paid_passengers'] = df['paid_passengers'].apply(
-    lambda x: (x-avg_pp)/std_pp)
+
+def standardize(df, columns):
+    for column in columns:
+        column_avg = df[column].mean()
+        column_std = df[column].std()
+        df[f'{column}_standard'] = df[column].apply(
+            lambda x: (x-column_avg)/column_std)
+    return df
+
+
+columns = ['flights', 'paid_passengers']
+df = df.pipe(standardize, columns=columns)
+
+df['yearmonth'] = df['dt_partida_real'].apply(
+    lambda x: datetime.strptime(x, '%Y-%m-%d').strftime('%Y-%m'))
 
 
 def transform_output(array, avg, std):
@@ -55,18 +66,21 @@ def create_time_steps(length):
 
 df.plot(subplots=True)
 
-#dataset = df.values
-#data_mean = dataset.mean(axis=0)
-#data_std = dataset.std(axis=0)
-#dataset = (dataset-data_mean)/data_std
 
-
-train = df[(df['dt_partida_real'] >= '2013-01-01') &
+train = df[(df['dt_partida_real'] >= '2012-01-01') &
            (df['dt_partida_real'] <= '2018-12-31')]
 validate = df[df['dt_partida_real'] >= '2019-01-01']
 
 
+df_agg = df.groupby('yearmonth').agg(flights=('flights', 'sum'),
+                                     paid_passengers=('paid_passengers', 'sum')).reset_index()
+df_agg = df_agg.pipe(standardize, columns=columns)
+train_agg = df_agg[(df_agg['yearmonth'] >= '2012-01') &
+                   (df_agg['yearmonth'] <= '2018-12')]
+validate_agg = df_agg[df_agg['yearmonth'] >= '2019-01']
+
 # %%
+
 
 print("Vanilla LSTM, univariate")
 # split a univariate sequence into samples
@@ -383,7 +397,7 @@ train_data = tf.data.Dataset.from_tensor_slices(
 train_data = train_data.cache().shuffle(100).batch(BATCH_SIZE).repeat()
 
 # fit model
-epochs = 10000
+epochs = 100
 steps_per_epoch = 1
 model.fit(train_data, epochs=epochs,
           steps_per_epoch=steps_per_epoch, verbose=1)
@@ -421,6 +435,8 @@ def plot_tcc2(plot_tcc):
 plot_tcc2(plot_tcc)
 # %%
 # %%
+# fazer -> loss por epoch (fit history)
+# -> enviar email poley
 
 
 # %%
