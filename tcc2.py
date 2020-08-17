@@ -339,6 +339,8 @@ model.fit(X, y, epochs=epochs, steps_per_epoch=steps_per_epoch, verbose=1)
 print("Bidirectional LSTM, univariate, multiple steps, vector output model")
 # split a univariate sequence into samples
 
+plt.rcParams["figure.figsize"] = [16, 9]
+
 
 def split_sequence(sequence, n_steps_in, n_steps_out):
     X, y = list(), list()
@@ -387,29 +389,32 @@ print(X.shape)
 print('Model type: Bidirectional LSTM')
 print('50 LSTM Units in the Hidden Layer')
 print('ADAM algorithm, MSE loss.')
-model = Sequential()
-model.add(Bidirectional(LSTM(100, activation='relu',
-                             input_shape=(n_steps_in, n_features))))
-model.add(Dense(n_steps_out))
-opt = optimizers.Adam(learning_rate=0.00005)
-model.compile(optimizer=opt, loss='mse')
+#epochs = [1000, 2000, 3000, 5000, 10000]
+epochs = range(1000, 10000, 1000)
+linwidth = range(len(epochs))
+train_fig = plt.figure(1)
+lr = 0.00005
+val_fig = plt.figure(2)
+for epoch, linewidth in zip(epochs, linwidth):
+    model = Sequential()
+    model.add(Bidirectional(LSTM(100, activation='relu',
+                                 input_shape=(n_steps_in, n_features))))
+    model.add(Dense(n_steps_out))
+    opt = optimizers.Adam(learning_rate=lr)
+    model.compile(optimizer=opt, loss='mse')
 
-# fit model"
-epochs = [1000, 2000, 3000, 5000, 10000]
-for epoch in epochs:
+    # fit model"
+    print(f'Starting training on {epoch} epochs.')
     steps_per_epoch = 1
     history = model.fit(X, y, validation_data=(X_val, y_val), epochs=epoch,
-                        steps_per_epoch=steps_per_epoch, verbose=1)
+                        steps_per_epoch=steps_per_epoch, verbose=0)
     train_time = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    plt.figure(1)
+    plt.title(f'Mean Squared Error')
+    plt.plot(history.history['loss'], label=f'train_{epoch}')
+    plt.plot(history.history['val_loss'], label=f'test_{epoch}')
 
-    plt.figure()
-    plt.title('Mean Squared Error')
-    plt.plot(history.history['loss'], label='train')
-    plt.plot(history.history['val_loss'], label='test')
-    plt.legend()
-
-    model.save_weights(f'saves/train_{epochs}_epochs_{train_time}')
-    plt.savefig(f"{epoch}_epochs_loss_{train_time}")
+    model.save_weights(f'saves/train_{epoch}_epochs_{train_time}')
     # demonstrate prediction
     predict_input = train_agg[train_agg['yearmonth']
                               >= '2018-01']['flights_standard'].values[-n_steps_in:]
@@ -422,13 +427,21 @@ for epoch in epochs:
     steps = create_time_steps(yhat.shape[1])
     steps_2 = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai',
                'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
-    plt.figure()
-    plt.plot(steps_2, predict[0], label='Predição')
-    plt.plot(steps_2, validate_flights, label='Real')
-    plt.legend()
 
+    plt.figure(2)
+    plt.plot(steps_2, predict[0], label=f'Predição - {epoch} Épocas',
+             color='blue', linestyle='dashed', linewidth=linewidth/5)
     mse = np.sqrt((np.square(validate_flights-predict)).mean())
     print(mse)
+    print('Done.')
+plt.figure(1)
+plt.legend()
+plt.savefig(
+    f"train_images/learning_rate_{lr}_mse_{epoch}_epochs_loss_{train_time}")
+plt.figure(2)
+plt.plot(steps_2, validate_flights, label='Real')
+plt.legend()
+plt.savefig(f"train_images/true_val_{epoch}_epochs_loss_{train_time}")
 # %%
 plt.rcParams["figure.figsize"] = [16, 9]
 

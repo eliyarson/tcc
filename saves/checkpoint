@@ -1,0 +1,2 @@
+model_checkpoint_path: "train_9000_epochs_2020-08-16_21-30-32"
+all_model_checkpoint_paths: "train_9000_epochs_2020-08-16_21-30-32"
